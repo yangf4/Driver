@@ -82,6 +82,7 @@ namespace {
     apf::Field* f = m->findField("motion_coords");
     assert(f);
     double* vals = new double[f->countComponents()];
+    assert(f->countComponents() == 3);
     apf::MeshEntity* vtx;
     apf::Vector3 points; 
     apf::MeshIterator* itr = m->begin(0);
@@ -94,6 +95,8 @@ namespace {
                  + (points[1] - vals[1])*(points[1] - vals[1])
                  + (points[2] - vals[2])*(points[2] - vals[2]); 
       if ( err > 1.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
+      std::cout << "node: " << debug << " ;Coordinates: " << points; 
+      std::cout << " ;Com: (" << vals[0] << ", " << vals[1] << ", " << vals[2] << ")" << '\n';
 //...END DEBUGGING
       for ( int i = 0; i < 3; i++ )  points[i] = vals[i];  
       m->setPoint(vtx, 0, points);
@@ -157,7 +160,7 @@ int main(int argc, char** argv) {
     overwriteMeshCoord(m);
     writeSequence(m,seq); seq++; 
 //    apf::Field* szFld = getField(m);
-    apf::Field* szFld = getConstSF(m, 1.0);
+    apf::Field* szFld = getConstSF(m, 2.0);
     apf::synchronize(szFld);
     apf::synchronize(m->getCoordinateField());
 //    m->writeNative("debug.smb");
