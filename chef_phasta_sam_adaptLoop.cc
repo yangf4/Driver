@@ -1,4 +1,5 @@
 #include "chefPhasta.h"
+#include "samSz.h"
 #include <PCU.h>
 #include <chef.h>
 #include <phasta.h>
@@ -94,9 +95,9 @@ namespace {
       double err = (points[0] - vals[0])*(points[0] - vals[0])
                  + (points[1] - vals[1])*(points[1] - vals[1])
                  + (points[2] - vals[2])*(points[2] - vals[2]); 
-      if ( err > 1.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
-      std::cout << "node: " << debug << " ;Coordinates: " << points; 
-      std::cout << " ;Com: (" << vals[0] << ", " << vals[1] << ", " << vals[2] << ")" << '\n';
+      if ( err > 2.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
+//      std::cout << "node: " << debug << " ;Coordinates: " << points; 
+//      std::cout << " ;Com: (" << vals[0] << ", " << vals[1] << ", " << vals[2] << ")" << '\n';
 //...END DEBUGGING
       for ( int i = 0; i < 3; i++ )  points[i] = vals[i];  
       m->setPoint(vtx, 0, points);
@@ -114,6 +115,14 @@ namespace {
     oss << filename << step;
     const std::string tmp = oss.str();
     apf::writeVtkFiles(tmp.c_str(),m);
+  }
+
+  void writeFirstCoord (apf::Mesh2* m) {
+    apf::Vector3 points; 
+    apf::MeshIterator* itr = m->begin(0);
+    apf::MeshEntity* vtx = m->iterate(itr);
+    m->getPoint(vtx, 0, points); 
+    std::cout << "First Node Coordinates: " << points << '\n'; 
   }  
 }
 
@@ -137,7 +146,6 @@ int main(int argc, char** argv) {
   apf::Mesh2* m = apf::loadMdsMesh(
       ctrl.modelFileName.c_str(),ctrl.meshFileName.c_str());
   chef::preprocess(m,ctrl,grs);
-//  chef::preprocess(m,ctrl);
   rstream rs = makeRStream();
   /* setup stream reading */
   ctrl.openfile_read = openstream_read;
@@ -148,19 +156,19 @@ int main(int argc, char** argv) {
   int seq  = 0;
   writeSequence(m,seq); seq++; 
   do {
+    /* take the initial mesh as size field */
+    apf::Field* szFld = samSz::isoSize(m);
     step = phasta(inp,grs,rs);
     ctrl.rs = rs; 
     clearGRStream(grs);
     if(!PCU_Comm_Self())
       fprintf(stderr, "STATUS ran to step %d\n", step);
-//    ctrl.openfile_read = openfile_read;
     setupChef(ctrl,step);
-//    chef::preprocess(m,ctrl);
     chef::readAndAttachFields(ctrl,m);
     overwriteMeshCoord(m);
     writeSequence(m,seq); seq++; 
 //    apf::Field* szFld = getField(m);
-    apf::Field* szFld = getConstSF(m, 2.0);
+//    apf::Field* szFld = getConstSF(m, 2.0);
     apf::synchronize(szFld);
     apf::synchronize(m->getCoordinateField());
 //    m->writeNative("debug.smb");
@@ -169,7 +177,6 @@ int main(int argc, char** argv) {
     writeSequence(m,seq); seq++; 
     apf::destroyField(szFld);
     chef::preprocess(m,ctrl,grs);
-//    chef::preprocess(m,ctrl);
     clearRStream(rs);
     loop++; 
   } while( loop < maxStep );
