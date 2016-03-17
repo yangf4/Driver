@@ -12,6 +12,8 @@
 #include <assert.h>
 #include <unistd.h>
 
+#define debug
+
 namespace {
   void freeMesh(apf::Mesh* m) {
     m->destroyNative();
@@ -90,7 +92,7 @@ namespace {
     int debug = 0; 
     while( (vtx = m->iterate(itr)) ) {
       apf::getComponents(f, vtx, 0, vals);
-//...DEBUGGING
+#ifdef debug
       m->getPoint(vtx, 0, points); 
       double err = (points[0] - vals[0])*(points[0] - vals[0])
                  + (points[1] - vals[1])*(points[1] - vals[1])
@@ -98,7 +100,7 @@ namespace {
       if ( err > 2.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
 //      std::cout << "node: " << debug << " ;Coordinates: " << points; 
 //      std::cout << " ;Com: (" << vals[0] << ", " << vals[1] << ", " << vals[2] << ")" << '\n';
-//...END DEBUGGING
+#endif
       for ( int i = 0; i < 3; i++ )  points[i] = vals[i];  
       m->setPoint(vtx, 0, points);
       debug++;
@@ -117,12 +119,38 @@ namespace {
     apf::writeVtkFiles(tmp.c_str(),m);
   }
 
+#ifdef debug
   void writeFirstCoord (apf::Mesh2* m) {
     apf::Vector3 points; 
     apf::MeshIterator* itr = m->begin(0);
     apf::MeshEntity* vtx = m->iterate(itr);
     m->getPoint(vtx, 0, points); 
     std::cout << "First Node Coordinates: " << points << '\n'; 
+  }
+#endif
+
+  void simAdapt (apf::Mesh2* m, apf::Field* szFld) {
+    apf::MeshSIM* apf_msim = dynamic_cast<apf::MeshSIM*>(m);
+    pParMesh sim_pm = apf_msim->getMesh();
+    pMSAdapt adapter = MSA_new(sim_pm, 1);
+    apf::MeshEntity* v;
+    apf::MeshIterator* it = apf_m->begin(0);
+    while ((v = apf_m->iterate(it))) {
+      double size = apf::getScalar(szFld, v, 0);
+      MSA_setVertexSize(adapter, (pVertex) v, size);
+    }
+    apf_m->end(it);
+//pseudo code
+    apf::Field* res_fld = apf_m->findField(PHASTA field names);
+//end pseudo
+    pField sim_res_fld = apf::getSIMField(res_fld);
+    PList_append(sim_fld_lst, sim_res_fld);
+    MSA_setMapFields(adapter, sim_fld_lst);
+    PList_delete(sim_fld_lst);
+    pProgress progress = Progress_new();
+    MSA_adapt(adapter, progress);
+    Progress_delete(progress);
+    MSA_delete(adapter);
   }  
 }
 
@@ -167,13 +195,11 @@ int main(int argc, char** argv) {
     chef::readAndAttachFields(ctrl,m);
     overwriteMeshCoord(m);
     writeSequence(m,seq); seq++; 
-//    apf::Field* szFld = getField(m);
-//    apf::Field* szFld = getConstSF(m, 2.0);
     apf::synchronize(szFld);
     apf::synchronize(m->getCoordinateField());
-//    m->writeNative("debug.smb");
     assert(szFld);
-    chef::adapt(m,szFld);
+//    chef::adapt(m,szFld);
+    simAdapt(m,szFld);
     writeSequence(m,seq); seq++; 
     apf::destroyField(szFld);
     chef::preprocess(m,ctrl,grs);
