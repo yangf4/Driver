@@ -91,11 +91,11 @@ namespace {
     while( (vtx = m->iterate(itr)) ) {
       apf::getComponents(f, vtx, 0, vals);
 //...DEBUGGING
-//      m->getPoint(vtx, 0, points); 
-//      double err = (points[0] - vals[0])*(points[0] - vals[0])
-//                 + (points[1] - vals[1])*(points[1] - vals[1])
-//                 + (points[2] - vals[2])*(points[2] - vals[2]); 
-//      if ( err > 2.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
+      m->getPoint(vtx, 0, points); 
+      double err = (points[0] - vals[0])*(points[0] - vals[0])
+                 + (points[1] - vals[1])*(points[1] - vals[1])
+                 + (points[2] - vals[2])*(points[2] - vals[2]); 
+      if ( err > 2.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
 //      std::cout << "node: " << debug << " ;Coordinates: " << points; 
 //      std::cout << " ;Com: (" << vals[0] << ", " << vals[1] << ", " << vals[2] << ")" << '\n';
 //...END DEBUGGING
@@ -154,32 +154,32 @@ int main(int argc, char** argv) {
   int step = 0;
   int loop = 0;
   int seq  = 0;
-  int p_i  = 0;
-  writeSequence(m,seq); seq++;
-  for (int loop= 0; loop < maxStep; loop++ ) { 
+  writeSequence(m,seq); seq++; 
+  do {
     /* take the initial mesh as size field */
     apf::Field* szFld = samSz::isoSize(m);
-    do {
-      step = phasta(inp,grs,rs);
-      clearGRStream(grs);
-      if(!PCU_Comm_Self())
-        fprintf(stderr, "STATUS ran to step %d\n", step);
-      setupChef(ctrl,step);
-      chef::readAndAttachFields(ctrl,m);
-      overwriteMeshCoord(m);
-      writeSequence(m,seq); seq++; 
-//      chef::preprocess(m,ctrl,grs);
-      clearRStream(rs);
-      p_i++; 
-    } while ( p_i < 2 ); //number is hardcoded here
+    step = phasta(inp,grs,rs);
+    ctrl.rs = rs; 
+    clearGRStream(grs);
+    if(!PCU_Comm_Self())
+      fprintf(stderr, "STATUS ran to step %d\n", step);
+    setupChef(ctrl,step);
+    chef::readAndAttachFields(ctrl,m);
+    overwriteMeshCoord(m);
+    writeSequence(m,seq); seq++; 
+//    apf::Field* szFld = getField(m);
+//    apf::Field* szFld = getConstSF(m, 2.0);
     apf::synchronize(szFld);
     apf::synchronize(m->getCoordinateField());
+//    m->writeNative("debug.smb");
     assert(szFld);
     chef::adapt(m,szFld);
     writeSequence(m,seq); seq++; 
     apf::destroyField(szFld);
-    p_i = 0;  
-  }
+    chef::preprocess(m,ctrl,grs);
+    clearRStream(rs);
+    loop++; 
+  } while( loop < maxStep );
   destroyGRStream(grs);
   destroyRStream(rs);
   freeMesh(m);
