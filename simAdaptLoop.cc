@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <unistd.h>
+#include <SimField.h>
+#include <MeshSimAdapt.h>
+#include <apfSIM.h>
+#include <SimPartitionedMesh.h>
 
 #define debug
 
@@ -134,17 +138,21 @@ namespace {
     pParMesh sim_pm = apf_msim->getMesh();
     pMSAdapt adapter = MSA_new(sim_pm, 1);
     apf::MeshEntity* v;
-    apf::MeshIterator* it = apf_m->begin(0);
-    while ((v = apf_m->iterate(it))) {
+    apf::MeshIterator* it = m->begin(0);
+    while ((v = m->iterate(it))) {
       double size = apf::getScalar(szFld, v, 0);
       MSA_setVertexSize(adapter, (pVertex) v, size);
     }
-    apf_m->end(it);
-//pseudo code
-    apf::Field* res_fld = apf_m->findField(PHASTA field names);
-//end pseudo
-    pField sim_res_fld = apf::getSIMField(res_fld);
-    PList_append(sim_fld_lst, sim_res_fld);
+    m->end(it);
+    apf::Field* res_fld;
+    if (res_fld = m->findField("solution"))
+//      apf::Field* res_fld = apf_m->findField("solution");
+//      pField sim_res_fld = apf::getSIMField(res_fld);
+      PList_append(sim_fld_lst, apf::getSIMField(res_fld));
+    if (res_fld = m->findField("time derivative of solution"))
+      PList_append(sim_fld_lst, apf::getSIMField(res_fld));
+    if (res_fld = m->findField("mesh_vel"))
+      PList_append(sim_fld_lst, apf::getSIMField(res_fld));
     MSA_setMapFields(adapter, sim_fld_lst);
     PList_delete(sim_fld_lst);
     pProgress progress = Progress_new();
