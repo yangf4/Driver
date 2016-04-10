@@ -12,6 +12,10 @@
 #include <assert.h>
 #include <unistd.h>
 
+#ifndef WRITE_VTK
+#define WRITE_VTK
+#endif
+
 namespace {
   void freeMesh(apf::Mesh* m) {
     m->destroyNative();
@@ -87,34 +91,23 @@ namespace {
     apf::MeshEntity* vtx;
     apf::Vector3 points; 
     apf::MeshIterator* itr = m->begin(0);
-    int debug = 0; 
     while( (vtx = m->iterate(itr)) ) {
       apf::getComponents(f, vtx, 0, vals);
-//...DEBUGGING
-//      m->getPoint(vtx, 0, points); 
-//      double err = (points[0] - vals[0])*(points[0] - vals[0])
-//                 + (points[1] - vals[1])*(points[1] - vals[1])
-//                 + (points[2] - vals[2])*(points[2] - vals[2]); 
-//      if ( err > 2.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
-//      std::cout << "node: " << debug << " ;Coordinates: " << points; 
-//      std::cout << " ;Com: (" << vals[0] << ", " << vals[1] << ", " << vals[2] << ")" << '\n';
-//...END DEBUGGING
       for ( int i = 0; i < 3; i++ )  points[i] = vals[i];  
       m->setPoint(vtx, 0, points);
-      debug++;
     }
     m->end(itr); 
-    fprintf(stderr, "total number of vertex: %d\n", debug);
     delete [] vals;
     return true;  
   }
    
-  void writeSequence (apf::Mesh2* m, int step) {
-    const std::string filename = "test_";
+  void writeSequence (apf::Mesh2* m, int step, const char* filename) {
     std::ostringstream oss; 
     oss << filename << step;
     const std::string tmp = oss.str();
+#ifdef WRITE_VTK
     apf::writeVtkFiles(tmp.c_str(),m);
+#endif
   }
 
   void writeFirstCoord (apf::Mesh2* m) {
@@ -123,7 +116,19 @@ namespace {
     apf::MeshEntity* vtx = m->iterate(itr);
     m->getPoint(vtx, 0, points); 
     std::cout << "First Node Coordinates: " << points << '\n'; 
-  }  
+  }
+
+  void attachSizeField (apf::Field* sf, apf::Mesh2* m) {
+    apf::Field* f = createFieldOn(m, "Size_Field", apf::SCALAR);
+    apf::MeshEntity* e;
+    apf::MeshIterator* it = m->begin(0);
+    while ((e = m->iterate(it))) {
+      double h = apf::getScalar(sf,e,0);
+      apf::setScalar(f, e, 0, h);
+    }
+    m->end(it);
+  }
+
 }
 
 int main(int argc, char** argv) {
@@ -141,45 +146,51 @@ int main(int argc, char** argv) {
   ph::Input ctrl;
   ctrl.load("samAdaptLoop.inp");
   /* setup file reading */
-  ctrl.openfile_read = openfile_read;
+//  ctrl.openfile_read = openfile_read;
   /* load the model and mesh */
   apf::Mesh2* m = apf::loadMdsMesh(
       ctrl.modelFileName.c_str(),ctrl.meshFileName.c_str());
+  chef::preprocess(m,ctrl);
   chef::preprocess(m,ctrl,grs);
   rstream rs = makeRStream();
   /* setup stream reading */
   ctrl.openfile_read = openstream_read;
   ctrl.rs = rs;
+  if (!ctrl.writeVizFiles)  ctrl.writeVizFiles = 2; 
   phSolver::Input inp("solver.inp", "input.config");
   int step = 0;
   int loop = 0;
   int seq  = 0;
-  int p_i  = 0;
-  writeSequence(m,seq); seq++;
-  for (int loop= 0; loop < maxStep; loop++ ) { 
-    /* take the initial mesh as size field */
-    apf::Field* szFld = samSz::isoSize(m);
-    do {
-      step = phasta(inp,grs,rs);
-      clearGRStream(grs);
-      if(!PCU_Comm_Self())
-        fprintf(stderr, "STATUS ran to step %d\n", step);
-      setupChef(ctrl,step);
-      chef::readAndAttachFields(ctrl,m);
-      overwriteMeshCoord(m);
-      writeSequence(m,seq); seq++; 
-//      chef::preprocess(m,ctrl,grs);
-      clearRStream(rs);
-      p_i++; 
-    } while ( p_i < 2 ); //number is hardcoded here
+//  apf::Mesh2* mtmp = m; 
+  writeSequence(m,seq,"test_"); seq++; 
+  /* take the initial mesh as size field */
+  apf::Field* iniSF = samSz::isoSize(m);
+  attachSizeField(iniSF, m);
+  apf::Field* szFld = m->findField("Size_Field");
+  do {
+    assert(szFld);
+    step = phasta(inp,grs,rs);
+    ctrl.rs = rs; 
+    clearGRStream(grs);
+    if(!PCU_Comm_Self())
+      fprintf(stderr, "STATUS ran to step %d\n", step);
+    setupChef(ctrl,step);
+    chef::readAndAttachFields(ctrl,m);
+    overwriteMeshCoord(m);
+    writeSequence(m,seq,"test_"); seq++; 
     apf::synchronize(szFld);
     apf::synchronize(m->getCoordinateField());
     assert(szFld);
     chef::adapt(m,szFld);
-    writeSequence(m,seq); seq++; 
-    apf::destroyField(szFld);
-    p_i = 0;  
-  }
+    apf::Field* szFld = m->findField("Size_Field");
+    assert(szFld);
+    writeSequence(m,seq,"test_"); seq++; 
+//    apf::destroyField(szFld);
+    chef::preprocess(m,ctrl,grs);
+    attachSizeField(szFld, m);
+    clearRStream(rs);
+    loop++; 
+  } while( loop < maxStep );
   destroyGRStream(grs);
   destroyRStream(rs);
   freeMesh(m);

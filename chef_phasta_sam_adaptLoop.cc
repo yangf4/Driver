@@ -12,6 +12,10 @@
 #include <assert.h>
 #include <unistd.h>
 
+#ifndef WRITE_VTK
+#define WRITE_VTK
+#endif
+
 namespace {
   void freeMesh(apf::Mesh* m) {
     m->destroyNative();
@@ -87,34 +91,23 @@ namespace {
     apf::MeshEntity* vtx;
     apf::Vector3 points; 
     apf::MeshIterator* itr = m->begin(0);
-    int debug = 0; 
     while( (vtx = m->iterate(itr)) ) {
       apf::getComponents(f, vtx, 0, vals);
-//...DEBUGGING
-      m->getPoint(vtx, 0, points); 
-      double err = (points[0] - vals[0])*(points[0] - vals[0])
-                 + (points[1] - vals[1])*(points[1] - vals[1])
-                 + (points[2] - vals[2])*(points[2] - vals[2]); 
-      if ( err > 2.0 ) fprintf(stderr, "Node %d bigger than tolerance\n", debug);
-//      std::cout << "node: " << debug << " ;Coordinates: " << points; 
-//      std::cout << " ;Com: (" << vals[0] << ", " << vals[1] << ", " << vals[2] << ")" << '\n';
-//...END DEBUGGING
       for ( int i = 0; i < 3; i++ )  points[i] = vals[i];  
       m->setPoint(vtx, 0, points);
-      debug++;
     }
     m->end(itr); 
-    fprintf(stderr, "total number of vertex: %d\n", debug);
     delete [] vals;
     return true;  
   }
    
-  void writeSequence (apf::Mesh2* m, int step) {
-    const std::string filename = "test_";
+  void writeSequence (apf::Mesh2* m, int step, const char* filename) {
     std::ostringstream oss; 
     oss << filename << step;
     const std::string tmp = oss.str();
+#ifdef WRITE_VTK
     apf::writeVtkFiles(tmp.c_str(),m);
+#endif
   }
 
   void writeFirstCoord (apf::Mesh2* m) {
@@ -123,7 +116,21 @@ namespace {
     apf::MeshEntity* vtx = m->iterate(itr);
     m->getPoint(vtx, 0, points); 
     std::cout << "First Node Coordinates: " << points << '\n'; 
-  }  
+  }
+
+  void attachSizeField (apf::Field* sf, apf::Mesh2* m) {
+    int out_size = 1;
+    apf::Field* f = apf::createPackedField(m, "Size Field", out_size);
+    double* data = new double[out_size]; 
+    apf::MeshEntity* e;
+    apf::MeshIterator* it = m->begin(0);
+    while ((e = m->iterate(it))) {
+      apf::getComponents(sf,e, 0, data);
+      apf::setComponents(f, e, 0, data);
+    }
+    m->end(it);
+  }
+     
 }
 
 int main(int argc, char** argv) {
@@ -141,20 +148,23 @@ int main(int argc, char** argv) {
   ph::Input ctrl;
   ctrl.load("samAdaptLoop.inp");
   /* setup file reading */
-  ctrl.openfile_read = openfile_read;
+//  ctrl.openfile_read = openfile_read;
   /* load the model and mesh */
   apf::Mesh2* m = apf::loadMdsMesh(
       ctrl.modelFileName.c_str(),ctrl.meshFileName.c_str());
+  chef::preprocess(m,ctrl);
   chef::preprocess(m,ctrl,grs);
   rstream rs = makeRStream();
   /* setup stream reading */
   ctrl.openfile_read = openstream_read;
   ctrl.rs = rs;
+  if (!ctrl.writeVizFiles)  ctrl.writeVizFiles = 2; 
   phSolver::Input inp("solver.inp", "input.config");
   int step = 0;
   int loop = 0;
   int seq  = 0;
-  writeSequence(m,seq); seq++; 
+//  apf::Mesh2* mtmp = m; 
+  writeSequence(m,seq,"test_"); seq++; 
   do {
     /* take the initial mesh as size field */
     apf::Field* szFld = samSz::isoSize(m);
@@ -166,15 +176,18 @@ int main(int argc, char** argv) {
     setupChef(ctrl,step);
     chef::readAndAttachFields(ctrl,m);
     overwriteMeshCoord(m);
-    writeSequence(m,seq); seq++; 
+    writeSequence(m,seq,"test_"); seq++; 
 //    apf::Field* szFld = getField(m);
 //    apf::Field* szFld = getConstSF(m, 2.0);
-    apf::synchronize(szFld);
-    apf::synchronize(m->getCoordinateField());
-//    m->writeNative("debug.smb");
+//    apf::synchronize(szFld);
+//    apf::synchronize(m->getCoordinateField());
     assert(szFld);
+//    attachSizeField(szFld, m);
+//    writeSequence(m,seq,"size_field");
     chef::adapt(m,szFld);
-    writeSequence(m,seq); seq++; 
+    attachSizeField(szFld, m);
+    writeSequence(m,seq,"size_field");
+    writeSequence(m,seq,"test_"); seq++; 
     apf::destroyField(szFld);
     chef::preprocess(m,ctrl,grs);
     clearRStream(rs);
