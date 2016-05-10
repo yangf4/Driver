@@ -29,18 +29,36 @@ namespace {
     const unsigned fldIdx = 1;
     const double fldLimit = 1.0;
     const double szFactor = 0.5;
-    const char* fldName = "solution";
+    const char* fldName = "motion_coords";
     return sam::specifiedIso(m,fldName,fldIdx,fldLimit,szFactor);
   }
   
-  apf::Field* getConstSF(apf::Mesh* m, double factor) {
-    apf::Field* newSz = apf::createFieldOn(m,"constSz",apf::SCALAR);
-    double h = 0.0; 
+  apf::Field* getPreSF(apf::Mesh* m, int step) {
+    apf::Field* newSz = apf::createFieldOn(m,"preSz",apf::SCALAR);
+    apf::Field* coord = m->findField("motion_coords");
+    double* vals = new double[coord->countComponents()];
+    double dis[444];
+    for ( int i =   0; i < 300; i++ )  dis[i] = 0.0;
+    dis[300] = 1.1e-6;
+    for ( int i = 301; i < 375; i++ )  dis[i] = 1.8e-6;
+    for ( int i = 375; i < 424; i++ )  dis[i] = dis[i-1]+0.0142857e-6;
+    dis[424] = 2.5e-6;
+    for ( int i = 425; i < 444; i++ )  dis[i] = dis[i-1]-0.1052631e-6;
+    double cen[] = {0.0, 0.0, 0.0};
+    for ( int i = 300; i < step-1;i++ )  cen[0] = cen[0] + dis[i];
     apf::MeshEntity* vtx;
     apf::MeshIterator* itr = m->begin(0);
     while( (vtx = m->iterate(itr)) ) {
-      h = factor;
-      apf::setScalar(newSz,vtx,0,h);
+      apf::getComponents(coord,vtx,0,vals);
+      double dist = sqrt((vals[0]-cen[0])*(vals[0]-cen[0]) +
+                         (vals[1]-cen[1])*(vals[1]-cen[1]) +
+                         (vals[2]-cen[2])*(vals[2]-cen[2]))- 9.5e-6; 
+      if ( dist < 0 )
+        apf::setScalar(newSz,vtx,0, 1.0e-6);
+      else if ( dist < 18e-6 )
+        apf::setScalar(newSz,vtx,0, 1.0e-6+dist/2.0);
+      else 
+        apf::setScalar(newSz,vtx,0, 1e-5);
     }
     m->end(itr);
     return newSz;
@@ -130,7 +148,59 @@ namespace {
     }
     m->end(it);
   }
-     
+
+  void writePHTfiles (int step, int nstep, int nproc) {
+    std::ostringstream oss;
+    oss << "solution_" << step << ".pht";
+    const std::string tp = oss.str();
+    const char* filename = tp.c_str();
+    FILE* sFile = fopen (filename, "w");
+    fprintf (sFile, "<?xml version=\"1.0\" ?>\n");
+    fprintf (sFile, "<PhastaMetaFile number_of_pieces=\"%d\">\n", nproc);
+    fprintf (sFile, "  <GeometryFileNamePattern pattern=\"%d-procs_case/geombc.%d.%%d\"\n",nproc,step);
+    fprintf (sFile, "                           has_piece_entry=\"1\"\n");
+    fprintf (sFile, "                           has_time_entry=\"0\"/>\n");
+    fprintf (sFile, "  <FieldFileNamePattern pattern=\"%d-procs_case/restart.%%d.%%d\"\n",nproc);
+    fprintf (sFile, "                        has_piece_entry=\"1\"\n");
+    fprintf (sFile, "                        has_time_entry=\"1\"/>\n");
+    fprintf (sFile, "  <TimeSteps number_of_steps=\"%d\"\n", nstep);
+    fprintf (sFile, "             auto_generate_indices=\"1\"\n");
+    fprintf (sFile, "             start_index=\"%d\"\n", step+1);
+    fprintf (sFile, "             increment_index_by=\"1\"\n");
+    fprintf (sFile, "             start_value=\"0.0\"\n");
+    fprintf (sFile, "             increment_value_by=\"1.0e-6\">\n");
+    fprintf (sFile, "  </TimeSteps>\n");
+    fprintf (sFile, "  <Fields number_of_fields=\"5\">\n");
+    fprintf (sFile, "    <Field paraview_field_tag=\"pressure\"\n");
+    fprintf (sFile, "           phasta_field_tag=\"solution\"\n");
+    fprintf (sFile, "           start_index_in_phasta_array=\"0\"\n");
+    fprintf (sFile, "           number_of_components=\"1\"/>\n");
+    fprintf (sFile, "    <Field paraview_field_tag=\"velocity\"\n");
+    fprintf (sFile, "           phasta_field_tag=\"solution\"\n");
+    fprintf (sFile, "           start_index_in_phasta_array=\"1\"\n");
+    fprintf (sFile, "           number_of_components=\"3\"\n");
+    fprintf (sFile, "           data_dependency=\"0\"\n");
+    fprintf (sFile, "           data_type=\"double\"/>\n");
+    fprintf (sFile, "    <Field paraview_field_tag=\"temperature\"\n");
+    fprintf (sFile, "           phasta_field_tag=\"solution\"\n");
+    fprintf (sFile, "           start_index_in_phasta_array=\"4\"\n");
+    fprintf (sFile, "           number_of_components=\"1\"/>\n");
+    fprintf (sFile, "    <Field paraview_field_tag=\"motion_coords\"\n");
+    fprintf (sFile, "           phasta_field_tag=\"motion_coords\"\n");
+    fprintf (sFile, "           start_index_in_phasta_array=\"0\"\n");
+    fprintf (sFile, "           number_of_components=\"3\"\n");
+    fprintf (sFile, "           data_dependency=\"0\"\n");
+    fprintf (sFile, "           data_type=\"double\"/>\n");
+    fprintf (sFile, "    <Field paraview_field_tag=\"mesh_vel\"\n");
+    fprintf (sFile, "           phasta_field_tag=\"mesh_vel\"\n");
+    fprintf (sFile, "           start_index_in_phasta_array=\"0\"\n");
+    fprintf (sFile, "           number_of_components=\"3\"\n");
+    fprintf (sFile, "           data_dependency=\"0\"\n");
+    fprintf (sFile, "           data_type=\"double\"/>\n");
+    fprintf (sFile, "  </Fields>\n");
+    fprintf (sFile, "</PhastaMetaFile>\n");
+    fclose (sFile);
+  } 
 }
 
 int main(int argc, char** argv) {
@@ -163,12 +233,16 @@ int main(int argc, char** argv) {
   int step = 0;
   int loop = 0;
   int seq  = 0;
-//  apf::Mesh2* mtmp = m; 
   writeSequence(m,seq,"test_"); seq++; 
+  writePHTfiles (0, 300, 8);
   do {
     /* take the initial mesh as size field */
-    apf::Field* szFld = samSz::isoSize(m);
+//    apf::Field* szFld = samSz::isoSize(m);
     step = phasta(inp,grs,rs);
+    if ( step >= 300 && step<425 && step%5==0 )
+      writePHTfiles (step, 5, 8);
+    else if ( step >= 425 )
+      writePHTfiles (step, 1, 8);
     ctrl.rs = rs; 
     clearGRStream(grs);
     if(!PCU_Comm_Self())
@@ -176,18 +250,17 @@ int main(int argc, char** argv) {
     setupChef(ctrl,step);
     chef::readAndAttachFields(ctrl,m);
     overwriteMeshCoord(m);
-    writeSequence(m,seq,"test_"); seq++; 
+    if ( (step%5==0) || (step>=425) )
+      writeSequence(m,seq,"test_"); seq++; 
 //    apf::Field* szFld = getField(m);
-//    apf::Field* szFld = getConstSF(m, 2.0);
-//    apf::synchronize(szFld);
-//    apf::synchronize(m->getCoordinateField());
+    apf::Field* szFld = getPreSF(m, step);
+    apf::synchronize(szFld);
+    apf::synchronize(m->getCoordinateField());
     assert(szFld);
-//    attachSizeField(szFld, m);
-//    writeSequence(m,seq,"size_field");
-    chef::adapt(m,szFld);
-    attachSizeField(szFld, m);
-    writeSequence(m,seq,"size_field");
-    writeSequence(m,seq,"test_"); seq++; 
+    if ( (step>=425) || (step>300 && step%5==0))
+      chef::adapt(m,szFld);
+    if ( (step%5==0) || (step>=425) )
+      writeSequence(m,seq,"test_"); seq++; 
     apf::destroyField(szFld);
     chef::preprocess(m,ctrl,grs);
     clearRStream(rs);
