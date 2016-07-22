@@ -71,6 +71,6 @@ setup_exe(chefPhastaLoop_stream_adapt chef_phasta_adaptLoop.cc ${ic})
 setup_exe(chefPhastaLoop_files_adapt chef_phasta_adaptLoop_files.cc ${ic})
 setup_exe(chefPhastaLoop_sam_stream_adapt chef_phasta_sam_adaptLoop.cc ${ic})
 setup_exe(chefPhastaLoop_FY adaptLoop_FY.cc ${ic})
-setup_exe(simAdaptLoop simAdaptLoop.cc ${ic})
+#setup_exe(simAdaptLoop simAdaptLoop.cc ${ic})
 
 add_subdirectory(test)

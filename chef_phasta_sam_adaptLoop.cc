@@ -37,13 +37,16 @@ namespace {
     apf::Field* newSz = apf::createFieldOn(m,"preSz",apf::SCALAR);
     apf::Field* coord = m->findField("motion_coords");
     double* vals = new double[coord->countComponents()];
-    double dis[444];
+    double dis[500];
     for ( int i =   0; i < 300; i++ )  dis[i] = 0.0;
-    dis[300] = 1.1e-6;
-    for ( int i = 301; i < 375; i++ )  dis[i] = 1.8e-6;
-    for ( int i = 375; i < 424; i++ )  dis[i] = dis[i-1]+0.0142857e-6;
-    dis[424] = 2.5e-6;
-    for ( int i = 425; i < 444; i++ )  dis[i] = dis[i-1]-0.1052631e-6;
+    for ( int i = 300; i < 377; i++ )  dis[i] = 1.6924e-6;
+    for ( int i = 377; i < 390; i++ )  dis[i] = 1.8338e-6;
+    for ( int i = 390; i < 402; i++ )  dis[i] = 1.8738e-6;
+    for ( int i = 402; i < 415; i++ )  dis[i] = 2.0562e-6;
+    for ( int i = 415; i < 427; i++ )  dis[i] = 2.3090e-6;
+    for ( int i = 427; i < 440; i++ )  dis[i] = 2.2736e-6;
+    for ( int i = 440; i < 452; i++ )  dis[i] = 1.7806e-6;
+
     double cen[] = {0.0, 0.0, 0.0};
     for ( int i = 300; i < step-1;i++ )  cen[0] = cen[0] + dis[i];
     apf::MeshEntity* vtx;
@@ -54,11 +57,14 @@ namespace {
                          (vals[1]-cen[1])*(vals[1]-cen[1]) +
                          (vals[2]-cen[2])*(vals[2]-cen[2]))- 9.5e-6; 
       if ( dist < 0 )
+//        apf::setScalar(newSz,vtx,0, 5.0e-7);
         apf::setScalar(newSz,vtx,0, 1.0e-6);
       else if ( dist < 18e-6 )
+//        apf::setScalar(newSz,vtx,0, 5.0e-7+dist/4.0);
         apf::setScalar(newSz,vtx,0, 1.0e-6+dist/2.0);
       else 
-        apf::setScalar(newSz,vtx,0, 1e-5);
+//        apf::setScalar(newSz,vtx,0, 5.0e-6);
+        apf::setScalar(newSz,vtx,0, 1.0e-5);
     }
     m->end(itr);
     return newSz;
@@ -118,7 +124,7 @@ namespace {
     delete [] vals;
     return true;  
   }
-   
+    
   void writeSequence (apf::Mesh2* m, int step, const char* filename) {
     std::ostringstream oss; 
     oss << filename << step;
@@ -230,7 +236,7 @@ int main(int argc, char** argv) {
   ctrl.rs = rs;
   if (!ctrl.writeVizFiles)  ctrl.writeVizFiles = 2; 
   phSolver::Input inp("solver.inp", "input.config");
-  int step = 0;
+  int step = 0; 
   int loop = 0;
   int seq  = 0;
   writeSequence(m,seq,"test_"); seq++; 
@@ -239,9 +245,9 @@ int main(int argc, char** argv) {
     /* take the initial mesh as size field */
 //    apf::Field* szFld = samSz::isoSize(m);
     step = phasta(inp,grs,rs);
-    if ( step >= 300 && step<425 && step%5==0 )
+    if ( step >= 300 && step<415 && step%5==0 )
       writePHTfiles (step, 5, 8);
-    else if ( step >= 425 )
+    else if ( step >= 415 )
       writePHTfiles (step, 1, 8);
     ctrl.rs = rs; 
     clearGRStream(grs);
@@ -249,17 +255,18 @@ int main(int argc, char** argv) {
       fprintf(stderr, "STATUS ran to step %d\n", step);
     setupChef(ctrl,step);
     chef::readAndAttachFields(ctrl,m);
+    apf::destroyField(m->findField("meshQ")); 
     overwriteMeshCoord(m);
-    if ( (step%5==0) || (step>=425) )
+    if ( (step%5==0) || (step>=415) )
       writeSequence(m,seq,"test_"); seq++; 
 //    apf::Field* szFld = getField(m);
     apf::Field* szFld = getPreSF(m, step);
     apf::synchronize(szFld);
     apf::synchronize(m->getCoordinateField());
     assert(szFld);
-    if ( (step>=425) || (step>300 && step%5==0))
+    if ( (step>=415) || (step>300 && step%5==0))
       chef::adapt(m,szFld);
-    if ( (step%5==0) || (step>=425) )
+    if ( (step%5==0) || (step>=415) )
       writeSequence(m,seq,"test_"); seq++; 
     apf::destroyField(szFld);
     chef::preprocess(m,ctrl,grs);
