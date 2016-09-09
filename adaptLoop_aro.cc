@@ -296,6 +296,7 @@ int main(int argc, char** argv) {
 // make the adaptaion run anyway
     doAdaptation = true; 
 // delele above when finish debug
+    apf::destroyField(m->findField("material_type"));
     if ( doAdaptation ) {
       writePHTfiles(phtStep, step-phtStep, 8); phtStep = step; 
       writeSequence(m,seq,"test_"); seq++; 
