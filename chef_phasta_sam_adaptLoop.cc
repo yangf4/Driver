@@ -30,7 +30,7 @@ namespace {
     const double fldLimit = 1.0;
     const double szFactor = 0.5;
     const char* fldName = "motion_coords";
-    return sam::specifiedIso(m,fldName,fldIdx,fldLimit,szFactor);
+    return sam::errorThreshold(m,fldName,fldIdx,fldLimit,szFactor);
   }
   
   apf::Field* getPreSF(apf::Mesh* m, int step) {
@@ -92,7 +92,6 @@ namespace {
   void setupChef(ph::Input& ctrl, int step) {
     //don't split or tetrahedronize
     ctrl.splitFactor = 1;
-    ctrl.recursivePtn = 0;
     ctrl.tetrahedronize = 0;
     ctrl.timeStepNumber = step;
     ctrl.solutionMigration = 1;

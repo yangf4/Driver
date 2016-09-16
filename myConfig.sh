@@ -18,7 +18,7 @@ cmake .. \
 -DIS_TESTING=True \
 -DMESHES=/fasttmp/yangf4/phastaChef/meshes/ \
 -DCORE_SRC_DIR=/fasttmp/yangf4/fork_chef/core-sim \
--DPHASTA_SRC_DIR=/fasttmp/yangf4/git_phasta/phasta \
+-DPHASTA_SRC_DIR=/fasttmp/yangf4/git_phasta/phaseChangePhasta \
 -DPHASTA_INCOMPRESSIBLE=OFF \
 -DPHASTA_COMPRESSIBLE=ON \
 -DLESLIB=LIBLES \

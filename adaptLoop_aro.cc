@@ -31,7 +31,7 @@ namespace {
     const double fldLimit = 1.0;
     const double szFactor = 0.5;
     const char* fldName = "motion_coords";
-    return sam::specifiedIso(m,fldName,fldIdx,fldLimit,szFactor);
+    return sam::errorThreshold(m,fldName,fldIdx,fldLimit,szFactor);
   }
   
   apf::Field* getPreSF(apf::Mesh* m, int step) {
@@ -93,7 +93,6 @@ namespace {
   void setupChef(ph::Input& ctrl, int step) {
     //don't split or tetrahedronize
     ctrl.splitFactor = 1;
-    ctrl.recursivePtn = 0;
     ctrl.tetrahedronize = 0;
     ctrl.timeStepNumber = step;
     ctrl.solutionMigration = 1;
@@ -284,8 +283,10 @@ int main(int argc, char** argv) {
   do {
     /* take the initial mesh as size field */
     apf::Field* szFld = samSz::isoSize(m);
+    m->verify();
     step = phasta(inp,grs,rs);
     ctrl.rs = rs; 
+    m->verify();
     clearGRStream(grs);
     if(!PCU_Comm_Self())
       fprintf(stderr, "STATUS ran to step %d\n", step);
@@ -297,8 +298,9 @@ int main(int argc, char** argv) {
     doAdaptation = true; 
 // delele above when finish debug
     apf::destroyField(m->findField("material_type"));
+    m->verify();
     if ( doAdaptation ) {
-      writePHTfiles(phtStep, step-phtStep, 8); phtStep = step; 
+      writePHTfiles(phtStep, step-phtStep, 16); phtStep = step; 
       writeSequence(m,seq,"test_"); seq++; 
     }
     /* Or take the hardcoded size field */
