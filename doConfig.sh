@@ -9,17 +9,16 @@ cmake .. \
 -DCMAKE_EXE_LINKER_FLAGS="-ldl $opt" \
 -DCMAKE_INSTALL_PREFIX=$PWD/install_nothread/ \
 \
--DPCU_COMPRESS=ON \
--DENABLE_ZOLTAN=ON \
--DIS_TESTING=True \
--DMESHES=/fasttmp/yangf4/meshes/ \
+-DSCOREC_PREFIX=/path/to/SCOREC/core/install/ \
 \
--DPHASTA_INCOMPRESSIBLE=OFF \
+-DPHASTA_INCOMPRESSIBLE=ON \
 -DPHASTA_COMPRESSIBLE=ON \
 -DPHASTA_USE_SVLS=OFF \
 -DPHASTA_USE_PETSC=OFF \
--DLESLIB=$LIBLES \
+-DLESLIB=/path/to/libles.a \
 -DPHASTA_TESTING=ON \
--DCASES=/fasttmp/yangf4/phastaChefTests/ \
+-DCASES=/path/to/phastaChefTests/ \
 ..
 
+make
+make test

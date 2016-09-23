@@ -306,7 +306,7 @@ int main(int argc, char** argv) {
     apf::synchronize(m->getCoordinateField());
     assert(szFld);
     if ( doAdaptation ) {
-      chef::adapt(m,szFld);
+      chef::adapt(m,szFld,ctrl);
       writeSequence(m,seq,"test_"); seq++;
     } 
     apf::destroyField(szFld);

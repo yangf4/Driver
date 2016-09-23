@@ -23,6 +23,18 @@ namespace {
     apf::destroyMesh(m);
   }
 
+  apf::Field* multipleSF(apf::Mesh* m, Field* sf, double factor) {
+    apf::Field* sz = createFieldOn(m, "multipliedSize", apf::SCALAR);
+    apf::MeshEntity* vtx;
+    apf::MeshIterator* itr = m->begin(0);
+    while( (vtx = m->iterate(itr)) ) {
+      double h = apf::getScalar(sf,vtx,0);
+      apf::setScalar(sz,vtx,0,h*factor);
+    }
+    m->end(itr);
+    return sz; 
+  }
+
   apf::Field* getField(apf::Mesh* m) {
     /* if the value of the fldIdx'th index from the fldName
      * field is greater than fldLimit then multiply the current
@@ -32,43 +44,6 @@ namespace {
     const double szFactor = 0.5;
     const char* fldName = "motion_coords";
     return sam::errorThreshold(m,fldName,fldIdx,fldLimit,szFactor);
-  }
-  
-  apf::Field* getPreSF(apf::Mesh* m, int step) {
-    apf::Field* newSz = apf::createFieldOn(m,"preSz",apf::SCALAR);
-    apf::Field* coord = m->findField("motion_coords");
-    double* vals = new double[coord->countComponents()];
-    double dis[500];
-    for ( int i =   0; i < 300; i++ )  dis[i] = 0.0;
-    for ( int i = 300; i < 377; i++ )  dis[i] = 1.6924e-6;
-    for ( int i = 377; i < 390; i++ )  dis[i] = 1.8338e-6;
-    for ( int i = 390; i < 402; i++ )  dis[i] = 1.8738e-6;
-    for ( int i = 402; i < 415; i++ )  dis[i] = 2.0562e-6;
-    for ( int i = 415; i < 427; i++ )  dis[i] = 2.3090e-6;
-    for ( int i = 427; i < 440; i++ )  dis[i] = 2.2736e-6;
-    for ( int i = 440; i < 452; i++ )  dis[i] = 1.7806e-6;
-
-    double cen[] = {0.0, 0.0, 0.0};
-    for ( int i = 300; i < step-1;i++ )  cen[0] = cen[0] + dis[i];
-    apf::MeshEntity* vtx;
-    apf::MeshIterator* itr = m->begin(0);
-    while( (vtx = m->iterate(itr)) ) {
-      apf::getComponents(coord,vtx,0,vals);
-      double dist = sqrt((vals[0]-cen[0])*(vals[0]-cen[0]) +
-                         (vals[1]-cen[1])*(vals[1]-cen[1]) +
-                         (vals[2]-cen[2])*(vals[2]-cen[2]))- 9.5e-6; 
-      if ( dist < 0 )
-//        apf::setScalar(newSz,vtx,0, 5.0e-7);
-        apf::setScalar(newSz,vtx,0, 1.0e-6);
-      else if ( dist < 18e-6 )
-//        apf::setScalar(newSz,vtx,0, 5.0e-7+dist/4.0);
-        apf::setScalar(newSz,vtx,0, 1.0e-6+dist/2.0);
-      else 
-//        apf::setScalar(newSz,vtx,0, 5.0e-6);
-        apf::setScalar(newSz,vtx,0, 1.0e-5);
-    }
-    m->end(itr);
-    return newSz;
   }
   
   static FILE* openfile_read(ph::Input&, const char* path) {
@@ -151,14 +126,6 @@ namespace {
 #ifdef WRITE_VTK
     apf::writeVtkFiles(tmp.c_str(),m);
 #endif
-  }
-
-  void writeFirstCoord (apf::Mesh2* m) {
-    apf::Vector3 points; 
-    apf::MeshIterator* itr = m->begin(0);
-    apf::MeshEntity* vtx = m->iterate(itr);
-    m->getPoint(vtx, 0, points); 
-    std::cout << "First Node Coordinates: " << points << '\n'; 
   }
 
   void attachSizeField (apf::Field* sf, apf::Mesh2* m) {
@@ -248,6 +215,7 @@ namespace {
     fprintf (sFile, "</PhastaMetaFile>\n");
     fclose (sFile);
   } 
+
 }
 
 int main(int argc, char** argv) {
@@ -281,12 +249,12 @@ int main(int argc, char** argv) {
   int seq  = 0;
   writeSequence(m,seq,"test_"); seq++; 
   do {
-    /* take the initial mesh as size field */
-    apf::Field* szFld = samSz::isoSize(m);
     m->verify();
+    /* take the initial mesh as size field */
+    apf::Field* isoSF = samSz::isoSize(m);
+    apf::Field* szFld = multipleSF(m, isoSF, 4.0);
     step = phasta(inp,grs,rs);
     ctrl.rs = rs; 
-    m->verify();
     clearGRStream(grs);
     if(!PCU_Comm_Self())
       fprintf(stderr, "STATUS ran to step %d\n", step);
@@ -303,15 +271,15 @@ int main(int argc, char** argv) {
       writePHTfiles(phtStep, step-phtStep, 16); phtStep = step; 
       writeSequence(m,seq,"test_"); seq++; 
     }
-    /* Or take the hardcoded size field */
+    /* Or obtain size field based on a certain field*/
 //    apf::Field* szFld = getField(m);
-//    apf::Field* szFld = getPreSF(m, step);
     apf::synchronize(szFld);
     apf::synchronize(m->getCoordinateField());
     assert(szFld);
     if ( doAdaptation ) {
-      chef::adapt(m,szFld);
+      chef::adapt(m,szFld,ctrl);
       writeSequence(m,seq,"test_"); seq++;
+      m->verify();
     } 
     apf::destroyField(szFld);
     chef::preprocess(m,ctrl,grs);
