@@ -23,7 +23,7 @@ namespace {
     apf::destroyMesh(m);
   }
 
-  apf::Field* multipleSF(apf::Mesh* m, Field* sf, double factor) {
+  apf::Field* multipleSF(apf::Mesh* m, apf::Field* sf, double factor) {
     apf::Field* sz = createFieldOn(m, "multipliedSize", apf::SCALAR);
     apf::MeshEntity* vtx;
     apf::MeshIterator* itr = m->begin(0);
@@ -260,9 +260,13 @@ int main(int argc, char** argv) {
       fprintf(stderr, "STATUS ran to step %d\n", step);
     setupChef(ctrl,step);
     chef::readAndAttachFields(ctrl,m);
+    m->verify();
     overwriteMeshCoord(m);
+    m->verify();
     bool doAdaptation = !isMeshqGood(m, ctrl.meshqCrtn);
+    m->verify();
 // make the adaptaion run anyway
+//    doAdaptation = false; 
     doAdaptation = true; 
 // delele above when finish debug
     apf::destroyField(m->findField("material_type"));
